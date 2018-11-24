@@ -262,13 +262,146 @@ print(fruits)
 
 ### `bisect` 管理已排序的序列 
 
+>`bisect` 模块包含两个主要函数，`bisect` 和 `insort`， 两个函数都利用二分查找算法来再有序序列中查找插入元素 
+
+```python
+import bisect
+HAYSTACK = [1,3,4,5,6,7,8,9,11,22,45,56,69]
+position = bisect.bisect_left(HAYSTACK,2)
+print(position) # 1
+
+position = bisect.bisect(HAYSTACK,2)
+print(position) # 1
+```
+
+bisect 可以用来建立一个用数字作为索引的查询表格，比如说把分数和成绩对应起来。 
+
+```python
+def grade(score, breakpoints=[60,70,80,90],grades='FDCBA'):
+    i = bisect.bisect(breakpoints,score)
+    return grades[i]
+
+print([ grade(score) for score in [33,99,77,70,89,90,100] ])
+
+# ['F', 'A', 'C', 'C', 'B', 'A', 'A']
+```
+
+用 `bisect.insort`插入新元素,总能保证`seq`的升序顺序
+
+```python
+
+import random
+
+SIZE = 7
+
+my_list = []
+for i in range(SIZE):
+    new_item = random.randrange(SIZE*2)
+    bisect.insort(my_list,new_item)
+    print('{:2d} -> {}'.format(new_item,my_list))
+
+#  5 -> [5]
+#  1 -> [1, 5]
+#  0 -> [0, 1, 5]
+#  3 -> [0, 1, 3, 5]
+# 13 -> [0, 1, 3, 5, 13]
+#  7 -> [0, 1, 3, 5, 7, 13]
+#  9 -> [0, 1, 3, 5, 7, 9, 13]
+```
+
+### 当列表不再是首选
+
+> 当我们要存放1000万个浮点数时，数组(`array`)的效率要高很多，因为数组在背后存的并不是 `float` 对象，而是数字的机器翻译
+也就是字节表述。如果要频繁对队列进行先进先出的操作，`deque` （双端队列）的速度应该更快。
+
+#### 数组 
+
+创建数组需要一个类型码，这个类型码用来表示在底层 C 语言应该存放怎样的数据类型，如 `b` 类型码代表的是有符号的字符 （signed char）
+Python 不允许你在数组存放指定类型之外的数据 
 
 
+下面代码展示将1000wan个随机浮点数的数组存到文件再读取出来 
 
 
+```python
 
+from array import array
+from random import random
 
+floats = array('d',(random() for i in range(10**7)))
 
+fp = open('floats.bin','wb')
+floats.tofile(fp)
+fp.close()
+print(floats[-1])
+
+floats2 = array('d')
+fp = open('floats.bin','rb')
+floats2.fromfile(fp,10**7)
+fp.close()
+print(floats2[-1])
+print(floats2 == floats)
+
+# 0.6205547382661204
+# 0.6205547382661204
+# True
+
+``` 
+
+#### 内存试图 `memoryview` 
+
+`memoryview` 是一个内置类，它能让用户在不复制内容的情况下操作同一个数组的不同切片。 
+
+```python
+from array import array
+numbers = array('h' ,[-2,-1,0,1,2])
+memv = memoryview(numbers)
+print(len(memv)) # 5
+print(memv[0])  # -2
+memv_oct = memv.cast('B') # 转换为 `B` 类型 无符号字符
+print(memv_oct.tolist()) # 以列表的形式看 memv_oct
+# [254, 255, 255, 255, 0, 0, 1, 0, 2, 0]
+memv_oct[5] = 4 # 把位置5的字节赋值成4
+# 因为我们把占2个字节的证书的高位字节改成了4所以这个有符号的整数的值变成了 1024 (没看懂 ~~~)
+print(numbers)
+# array('h', [-2, -1, 1024, 1, 2])
+```
+
+#### 双向队列和其他形式的队列
+
+利用 `.append` 和 `.pop` 方法我们可以把列表当做栈和队列来用。但是删除列表第一个元素或者第一个元素之前添加一个元素是很
+耗时的，因为这些操作会牵扯到移动列表里的所有元素。 
+
+`collections.deque` 类（双向队列）是一个线程安全的可以快速从两端添加或者删除元素的数据类型，而且如果想要有一种数据类型来
+存放"最近用到的几个元素"，`deque` 也是一个很好的选择。这是因为在新建一个双向队列的时候你可以指定这个队列的大小。如果这个队列
+满员了，还可以从反向端删除过期的元素，然后再尾端添加新的元素。 
+
+```python
+from collections import deque
+
+# maxlen 是一个可选参数，代表这个队列可以容纳的元素数量，一旦设定，这个属性就不能修改
+dq = deque(range(10),maxlen=10)
+print(dq)
+# deque([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], maxlen=10)
+
+# 队列的旋转操作接收一个参数n
+# n>0时 最右边的n个元素会被移动到左边，n<0，最左边n个元素移动到右边
+dq.rotate(3)
+print(dq)
+# deque([7, 8, 9, 0, 1, 2, 3, 4, 5, 6], maxlen=10)
+dq.rotate(-4)
+print(dq)
+# deque([1, 2, 3, 4, 5, 6, 7, 8, 9, 0], maxlen=10)
+dq.appendleft(-1)
+print(dq)
+# deque([-1, 1, 2, 3, 4, 5, 6, 7, 8, 9], maxlen=10)
+dq.extend([11,12,13])
+print(dq)
+# deque([3, 4, 5, 6, 7, 8, 9, 11, 12, 13], maxlen=10)
+dq.extendleft([10,20,30,40])
+print(dq)
+# deque([40, 30, 20, 10, 3, 4, 5, 6, 7, 8], maxlen=10)
+```
 
 
 
